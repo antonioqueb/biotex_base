@@ -9,7 +9,7 @@ class ResPartner(models.Model):
         ('private', 'Cliente privado'),
         ('supplier', 'Proveedor'),
         ('other', 'Otro'),
-    ], string='Tipo Biotex', default='other')
+    ], string='Tipo de contacto', default='other')
     biotex_institution_code = fields.Char(string='Clave institución', help='IMSS, ISSSTE, SEDENA, BIENESTAR, SSA-XX')
     biotex_accepted_brand_ids = fields.Many2many(
         'res.partner.category', 'biotex_partner_brand_tag_rel', 'partner_id', 'tag_id',

@@ -6,7 +6,7 @@
         <field name="inherit_id" ref="stock.view_warehouse"/>
         <field name="arch" type="xml">
             <xpath expr="//notebook" position="before">
-                <group string="Delegación Biotex" name="biotex">
+                <group string="Delegación" name="biotex">
                     <group>
                         <group string="Identidad">
                             <field name="biotex_is_delegation"/>

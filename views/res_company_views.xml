@@ -6,7 +6,7 @@
         <field name="inherit_id" ref="base.view_company_form"/>
         <field name="arch" type="xml">
             <xpath expr="//notebook" position="inside">
-                <page string="Biotex" name="biotex">
+                <page string="Distribución" name="biotex">
                     <group>
                         <field name="biotex_short_name"/>
                         <field name="biotex_is_default_buyer"/>
