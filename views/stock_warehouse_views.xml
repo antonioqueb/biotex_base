@@ -5,8 +5,8 @@
         <field name="model">stock.warehouse</field>
         <field name="inherit_id" ref="stock.view_warehouse"/>
         <field name="arch" type="xml">
-            <xpath expr="//notebook" position="inside">
-                <page string="Delegación Biotex" name="biotex">
+            <xpath expr="//notebook" position="before">
+                <group string="Delegación Biotex" name="biotex">
                     <group>
                         <group string="Identidad">
                             <field name="biotex_is_delegation"/>
@@ -21,7 +21,7 @@
                         </group>
                     </group>
                     <field name="biotex_notes" placeholder="Notas operativas de la delegación..."/>
-                </page>
+                </group>
             </xpath>
         </field>
     </record>
