@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="base.main_company" model="res.company">
+        <field name="biotex_is_default_buyer" eval="True"/>
+        <field name="biotex_short_name">BIOTEX</field>
+    </record>
+</odoo>

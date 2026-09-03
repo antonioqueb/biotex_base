@@ -9,6 +9,7 @@
     'data': [
         'security/biotex_security.xml',
         'security/ir.model.access.csv',
+        'data/company_data.xml',
         'views/stock_warehouse_views.xml',
         'views/res_users_views.xml',
         'views/res_company_views.xml',
