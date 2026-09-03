@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_partner_form_biotex" model="ir.ui.view">
+        <field name="name">res.partner.form.biotex</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='category_id']" position="after">
+                <field name="biotex_partner_type"/>
+                <field name="biotex_institution_code" invisible="biotex_partner_type != 'institution'"/>
+                <field name="biotex_accepted_brand_ids" widget="many2many_tags"
+                       invisible="biotex_partner_type not in ('institution', 'private')"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="action_biotex_institutions" model="ir.actions.act_window">
+        <field name="name">Instituciones y clientes</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="domain">[('biotex_partner_type', 'in', ('institution', 'private'))]</field>
+        <field name="context">{'default_biotex_partner_type': 'institution', 'default_is_company': True}</field>
+    </record>
+</odoo>

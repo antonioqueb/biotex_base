@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="module_category_biotex" model="ir.module.category">
+        <field name="name">Biotex</field>
+        <field name="sequence">5</field>
+    </record>
+
+    <record id="privilege_biotex" model="res.groups.privilege">
+        <field name="name">Biotex</field>
+        <field name="category_id" ref="module_category_biotex"/>
+        <field name="sequence">5</field>
+    </record>
+
+    <record id="group_biotex_delegation" model="res.groups">
+        <field name="name">Delegación (almacenista / vendedor)</field>
+        <field name="privilege_id" ref="privilege_biotex"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        <field name="comment">Captura solicitudes, recibe mercancía y emite remisiones de su delegación.</field>
+    </record>
+
+    <record id="group_biotex_coordinator" model="res.groups">
+        <field name="name">Coordinador de delegación</field>
+        <field name="privilege_id" ref="privilege_biotex"/>
+        <field name="implied_ids" eval="[(4, ref('group_biotex_delegation'))]"/>
+        <field name="comment">Autoriza el sustento (contrato / emergente / privado) de las solicitudes.</field>
+    </record>
+
+    <record id="group_biotex_purchase" model="res.groups">
+        <field name="name">Compras</field>
+        <field name="privilege_id" ref="privilege_biotex"/>
+        <field name="implied_ids" eval="[(4, ref('group_biotex_delegation')), (4, ref('purchase.group_purchase_user'))]"/>
+        <field name="comment">Identifica producto, cotiza, ordena, registra guías.</field>
+    </record>
+
+    <record id="group_biotex_payments" model="res.groups">
+        <field name="name">Administración / Pagos</field>
+        <field name="privilege_id" ref="privilege_biotex"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        <field name="comment">Atiende la cola de solicitudes de pago y registra comprobantes.</field>
+    </record>
+
+    <record id="group_biotex_accounting" model="res.groups">
+        <field name="name">Contabilidad</field>
+        <field name="privilege_id" ref="privilege_biotex"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        <field name="comment">Cuentas por pagar / cobrar consolidadas.</field>
+    </record>
+
+    <record id="group_biotex_direction" model="res.groups">
+        <field name="name">Dirección</field>
+        <field name="privilege_id" ref="privilege_biotex"/>
+        <field name="implied_ids" eval="[(4, ref('group_biotex_coordinator')), (4, ref('group_biotex_purchase')), (4, ref('group_biotex_payments')), (4, ref('group_biotex_accounting'))]"/>
+        <field name="comment">Dueño del catálogo (familias), excepciones y tableros.</field>
+    </record>
+</odoo>

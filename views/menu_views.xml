@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_biotex_root" name="Biotex" sequence="1" web_icon="biotex_base,static/description/icon.png"
+              groups="biotex_base.group_biotex_delegation"/>
+    <menuitem id="menu_biotex_operations" name="Operación" parent="menu_biotex_root" sequence="10"/>
+    <menuitem id="menu_biotex_catalog" name="Catálogo" parent="menu_biotex_root" sequence="20"/>
+    <menuitem id="menu_biotex_contracts" name="Contratos" parent="menu_biotex_root" sequence="30"/>
+    <menuitem id="menu_biotex_reports" name="Análisis" parent="menu_biotex_root" sequence="80"/>
+    <menuitem id="menu_biotex_config" name="Configuración" parent="menu_biotex_root" sequence="99"
+              groups="biotex_base.group_biotex_direction"/>
+    <menuitem id="menu_biotex_delegations" name="Delegaciones" parent="menu_biotex_config" sequence="10"
+              action="action_biotex_delegations"/>
+    <menuitem id="menu_biotex_institutions" name="Instituciones" parent="menu_biotex_contracts" sequence="90"
+              action="action_biotex_institutions"/>
+</odoo>
