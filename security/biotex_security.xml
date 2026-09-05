@@ -49,7 +49,7 @@
     <record id="group_biotex_direction" model="res.groups">
         <field name="name">Dirección</field>
         <field name="privilege_id" ref="privilege_biotex"/>
-        <field name="implied_ids" eval="[(4, ref('group_biotex_coordinator')), (4, ref('group_biotex_purchase')), (4, ref('group_biotex_payments')), (4, ref('group_biotex_accounting'))]"/>
+        <field name="implied_ids" eval="[(4, ref('group_biotex_coordinator')), (4, ref('group_biotex_purchase')), (4, ref('group_biotex_payments')), (4, ref('group_biotex_accounting')), (4, ref('stock.group_stock_user'))]"/>
         <field name="comment">Dueño del catálogo (familias), excepciones y tableros.</field>
     </record>
 </odoo>

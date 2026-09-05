@@ -1,0 +1,16 @@
+<odoo>
+  <record id="view_delegation_form" model="ir.ui.view">
+    <field name="name">biotex.delegation.form</field><field name="model">biotex.delegation</field>
+    <field name="arch" type="xml"><form><sheet><group><field name="name"/><field name="company_id"/><field name="coordinator_id"/><field name="responsible_id"/><field name="hospital_ids" widget="many2many_tags"/><field name="warehouse_ids" readonly="1"/></group></sheet><chatter/></form></field>
+  </record>
+  <record id="action_delegation" model="ir.actions.act_window"><field name="name">Delegaciones comerciales</field><field name="res_model">biotex.delegation</field><field name="view_mode">list,form</field></record>
+  <record id="view_exception_form" model="ir.ui.view">
+    <field name="name">biotex.exception.form</field><field name="model">biotex.exception</field>
+    <field name="arch" type="xml"><form><header><button name="action_approve" type="object" string="Autorizar" invisible="state != 'draft'" groups="biotex_base.group_biotex_direction"/><button name="action_revoke" type="object" string="Revocar" invisible="state != 'approved'" groups="biotex_base.group_biotex_direction"/><field name="state" widget="statusbar"/></header><sheet><group><field name="name" readonly="state != 'draft'"/><field name="company_id" readonly="state != 'draft'"/><field name="kind" readonly="state != 'draft'"/><field name="effect" readonly="state != 'draft'"/><field name="date_end" readonly="state != 'draft'"/><field name="attachment_ids" widget="many2many_binary" readonly="state != 'draft'"/><field name="approved_by_id"/><field name="approved_on"/></group></sheet><chatter/></form></field>
+  </record>
+  <record id="action_operational_exception" model="ir.actions.act_window"><field name="name">Excepciones autorizadas</field><field name="res_model">biotex.exception</field><field name="view_mode">list,form</field></record>
+  <menuitem id="menu_delegation_business" name="Delegaciones comerciales" parent="stock.menu_warehouse_config" action="action_delegation" groups="biotex_base.group_biotex_direction"/>
+  <menuitem id="menu_operational_exception" name="Excepciones operativas" parent="stock.menu_stock_root" action="action_operational_exception" groups="biotex_base.group_biotex_delegation,biotex_base.group_biotex_payments"/>
+  <record id="rule_delegation_company" model="ir.rule"><field name="name">Delegaciones por empresa</field><field name="model_id" ref="model_biotex_delegation"/><field name="domain_force">[('company_id', 'in', company_ids)]</field></record>
+  <record id="rule_exception_company" model="ir.rule"><field name="name">Excepciones por empresa</field><field name="model_id" ref="model_biotex_exception"/><field name="domain_force">[('company_id', 'in', company_ids)]</field></record>
+</odoo>

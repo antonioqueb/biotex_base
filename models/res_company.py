@@ -7,7 +7,7 @@ class ResCompany(models.Model):
 
     biotex_is_default_buyer = fields.Boolean(
         string='Razón social compradora por defecto',
-        help='Regla: las compras se hacen con esta razón social; cualquier otra requiere excepción documentada.')
+        help='Propuesta inicial; cualquier empresa autorizada puede comprar con sus propios datos.')
     biotex_short_name = fields.Char(string='Nombre corto', help='Ej. BIOTEX, BALMA, PRO')
     biotex_remision_footer = fields.Html(string='Pie de remisión')
 

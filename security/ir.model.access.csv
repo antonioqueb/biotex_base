@@ -1,1 +1,5 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_delegation_user,Delegaciones consulta,model_biotex_delegation,base.group_user,1,0,0,0
+access_delegation_direction,Delegaciones dirección,model_biotex_delegation,biotex_base.group_biotex_direction,1,1,1,0
+access_exception_user,Excepciones,model_biotex_exception,biotex_base.group_biotex_delegation,1,1,1,0
+access_exception_admin,Excepciones administración,model_biotex_exception,biotex_base.group_biotex_payments,1,1,1,0

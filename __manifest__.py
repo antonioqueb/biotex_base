@@ -1,7 +1,7 @@
 {
     'name': 'Distribución - Base (delegaciones y roles)',
     'summary': 'Grupos de seguridad, delegaciones (almacenes), razones sociales e instituciones',
-    'version': '19.0.1.0.0',
+    'version': '19.0.2.0.0',
     'category': 'Distribución de insumos',
     'author': 'Alphaqueb Consulting SAS',
     'license': 'LGPL-3',
@@ -16,6 +16,7 @@
         'views/res_company_views.xml',
         'views/res_partner_views.xml',
         'views/menu_views.xml',
+        'views/operational_views.xml',
     ],
     'application': True,
     'installable': True,
