@@ -2,6 +2,13 @@
 <odoo noupdate="1">
     <record id="base.main_company" model="res.company">
         <field name="biotex_is_default_buyer" eval="True"/>
-        <field name="biotex_short_name">BIOTEX</field>
+        <field name="biotex_short_name">SEB Zacatecas</field>
+        <field name="name">SERVICIOS Y EQUIPOS EN BIOTECNOLOGIA DE ZACATECAS</field>
+        <field name="vat">SEB150217A8A</field>
+        <field name="country_id" ref="base.mx"/>
+        <field name="street">Calle Llano de la Isabelica #3000</field>
+        <field name="street2">Interior 0, Fracc. Lomas de la Isabelica</field>
+        <field name="zip">98099</field>
+        <field name="city">Zacatecas</field>
     </record>
 </odoo>
