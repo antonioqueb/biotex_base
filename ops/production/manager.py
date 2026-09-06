@@ -230,7 +230,7 @@ def create_database(environment):
         sql(environment,"SET log_min_duration_statement=-1; CREATE ROLE bioteczac_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD '%s';" % password)
     if not sql(environment,"SELECT 1 FROM pg_database WHERE datname='bioteczac';"):
         sql(environment,'CREATE DATABASE bioteczac OWNER bioteczac_app TEMPLATE template0;')
-    sql(environment,'REVOKE CONNECT ON DATABASE postgres FROM PUBLIC; REVOKE ALL ON DATABASE bioteczac FROM PUBLIC; GRANT CONNECT,TEMP ON DATABASE bioteczac TO bioteczac_app;')
+    sql(environment,'REVOKE CONNECT ON DATABASE postgres FROM PUBLIC; GRANT CONNECT ON DATABASE postgres TO bioteczac_app; REVOKE ALL ON DATABASE bioteczac FROM PUBLIC; GRANT CONNECT,TEMP ON DATABASE bioteczac TO bioteczac_app;')
     db_query(environment,'SET ROLE bioteczac_app; CREATE EXTENSION IF NOT EXISTS unaccent; CREATE EXTENSION IF NOT EXISTS pg_trgm; RESET ROLE;')
 
 
@@ -260,15 +260,15 @@ def setup():
         raise RuntimeError('Production is already initialized. setup never resets it.')
     copy_code('production')
     database_ready('production'); create_database('production')
-    # Odoo's initialization CLI connects to the maintenance database even when
-    # the target already exists. No HTTP service runs during this bounded grant.
+    # Odoo checks the maintenance database at every startup. CONNECT is harmless
+    # there; creation privileges are bounded to this offline initialization.
     sql('production','ALTER ROLE bioteczac_app CREATEDB; GRANT CONNECT ON DATABASE postgres TO bioteczac_app;')
     try:
         with (path('production')/'logs'/'initialize.log').open('w') as stream:
             compose('production','run','-T','--rm','--no-deps','odoo','-i',MODULES,'--without-demo=True',
                     '--stop-after-init','--no-http','--workers=0','--max-cron-threads=0','--load-language=es_MX',output=stream)
     finally:
-        sql('production','ALTER ROLE bioteczac_app NOCREATEDB; REVOKE CONNECT ON DATABASE postgres FROM bioteczac_app;')
+        sql('production','ALTER ROLE bioteczac_app NOCREATEDB;')
     shell('production',(ROOT/'runtime'/'bootstrap_odoo.py').read_text(),path('production')/'logs'/'bootstrap.log')
     compose('production','up','-d','odoo','nginx'); health('production')
     verify('production')
