@@ -50,6 +50,21 @@ class TestCompanyIdentity(TransactionCase):
         self.assertEqual(before, companies.read(['write_date', 'partner_id']))
         self.assertEqual(messages, self.env['mail.message'].search_count([]))
 
+    def test_company_address_preserves_existing_sale_fiscal_choice(self):
+        field = 'l10n_mx_edi_cfdi_to_public'
+        if 'sale.order' not in self.env or field not in self.env['sale.order']._fields:
+            self.skipTest('Mexican sale localization is not installed')
+        main = identity_plan(self.env)[0][1]
+        orders = self.env['sale.order'].search([('company_id', '=', main.id)])
+        self.assertTrue(orders, 'Restored customer orders are required for this regression')
+        main.with_context(tracking_disable=True).zip = False
+        orders.with_context(tracking_disable=True).write({field: True})
+        orders.flush_recordset([field])
+        apply_company_identities(self.env)
+        orders.flush_recordset([field])
+        self.assertTrue(all(orders.mapped(field)))
+        self.assertEqual(main.zip, '98099')
+
     def test_duplicate_rfc_aborts_before_any_company_changes(self):
         plan = identity_plan(self.env)
         main, valma = plan[0][1], plan[1][1]

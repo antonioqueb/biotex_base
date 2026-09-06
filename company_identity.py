@@ -93,6 +93,13 @@ def identity_plan(env):
 
 def apply_company_identities(env):
     plan = identity_plan(env)
+    # Mexican localization recomputes this editable choice when a company address
+    # becomes complete. Correcting the company must not change an existing order.
+    fiscal_choices = {}
+    fiscal_field = 'l10n_mx_edi_cfdi_to_public'
+    if 'sale.order' in env and fiscal_field in env['sale.order']._fields:
+        orders = env['sale.order'].search([('company_id', 'in', [c.id for _, c, _ in plan])])
+        fiscal_choices = {order.id: order[fiscal_field] for order in orders}
     for xmlid, company, values in plan:
         before = {key: (company[key].id if company._fields[key].type == 'many2one'
                         else company[key]) for key in values}
@@ -114,4 +121,10 @@ def apply_company_identities(env):
                 'module': module, 'name': name, 'model': 'res.company',
                 'res_id': company.id, 'noupdate': True,
             })
+    if fiscal_choices:
+        orders.flush_recordset([fiscal_field])
+        for order in orders:
+            if order[fiscal_field] != fiscal_choices[order.id]:
+                order.with_context(tracking_disable=True).write({fiscal_field: fiscal_choices[order.id]})
+                _logger.info('COMPANY_IDENTITY preserved fiscal choice on sale.order %s', order.id)
     return [company.id for _, company, _ in plan]
