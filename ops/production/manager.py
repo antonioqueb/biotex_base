@@ -224,7 +224,7 @@ def create_database(environment):
     password=(path(environment)/'secrets'/'app_password').read_text().strip()
     assert "'" not in password
     if not sql(environment,"SELECT 1 FROM pg_roles WHERE rolname='bioteczac_app';"):
-        sql(environment,"CREATE ROLE bioteczac_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD '%s';" % password)
+        sql(environment,"SET log_min_duration_statement=-1; CREATE ROLE bioteczac_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION PASSWORD '%s';" % password)
     if not sql(environment,"SELECT 1 FROM pg_database WHERE datname='bioteczac';"):
         sql(environment,'CREATE DATABASE bioteczac OWNER bioteczac_app TEMPLATE template0;')
     sql(environment,'REVOKE CONNECT ON DATABASE postgres FROM PUBLIC; REVOKE ALL ON DATABASE bioteczac FROM PUBLIC; GRANT CONNECT,TEMP ON DATABASE bioteczac TO bioteczac_app;')
@@ -280,6 +280,24 @@ def encryption_setup():
     return key,public.read_text().strip()
 
 
+CORE_TABLES = ('product_template', 'product_product', 'product_category', 'biotex_division',
+ 'biotex_group', 'biotex_classifier', 'biotex_brand', 'biotex_specialty', 'biotex_equipment',
+ 'biotex_mt_subclass', 'biotex_generic', 'biotex_family_classifier_rel',
+ 'biotex_product_specialty_rel', 'biotex_product_equipment_rel', 'sale_order', 'purchase_order',
+ 'account_move', 'account_move_line', 'account_payment', 'stock_quant', 'stock_move',
+ 'biotex_contract', 'biotex_remision', 'biotex_remision_mask')
+
+
+def controls(environment):
+    result = {}
+    for table in CORE_TABLES:
+        if not db_query(environment, "SELECT to_regclass('public.%s');" % table): continue
+        query = ("SELECT count(*),coalesce(bit_xor(('x'||substr(md5(row_to_json(t)::text),1,16))::bit(64)::bigint),0),"
+                 "coalesce(bit_xor(('x'||substr(md5(row_to_json(t)::text),17,16))::bit(64)::bigint),0) FROM %s t;" % table)
+        result[table] = db_query(environment, query)
+    return result
+
+
 def snapshot():
     encryption_setup()
     directory=Path(tempfile.mkdtemp(prefix='snapshot-',dir=ROOT/'work'))
@@ -291,6 +309,7 @@ def snapshot():
         if store.exists(): shutil.copytree(store,directory/'filestore')
         else: (directory/'filestore').mkdir()
         shutil.copy(path('production')/'release.json',directory/'release.json')
+        write_private(directory/'controls.json',json.dumps(controls('production'),sort_keys=True)+'\n')
         write_private(directory/'snapshot.json',json.dumps({'database':DATABASE,'source':'production',
             'cutoff_utc':dt.datetime.now(dt.timezone.utc).isoformat(),
             'database_uuid':db_query('production',"SELECT value FROM ir_config_parameter WHERE key='database.uuid';")},indent=2)+'\n')
@@ -313,7 +332,10 @@ def encrypt_snapshot(directory):
         assert archive.wait()==0
     finally:
         if archive.poll() is None: archive.terminate()
-    digest=hashlib.sha256(dest.read_bytes()).hexdigest()
+    digest_state=hashlib.sha256()
+    with dest.open('rb') as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''): digest_state.update(chunk)
+    digest=digest_state.hexdigest()
     write_private(dest.with_suffix(dest.suffix+'.sha256'),digest+'  '+dest.name+'\n')
     print('ENCRYPTED_BACKUP',dest)
     return dest
@@ -358,6 +380,7 @@ def qa_refresh():
         with (path('qa')/'logs'/'neutralize.log').open('w') as stream:
             compose('qa','run','-T','--rm','--no-deps','odoo','neutralize','-d',DATABASE,output=stream)
         shell('qa',(ROOT/'runtime'/'neutralize_qa.py').read_text(),path('qa')/'logs'/'neutralize-extra.log')
+        assert controls('qa') == json.loads((restored/'controls.json').read_text()), 'QA business data differs from its production snapshot'
         source_uuid=json.loads((restored/'snapshot.json').read_text())['database_uuid']
         assert source_uuid != db_query('qa',"SELECT value FROM ir_config_parameter WHERE key='database.uuid';")
         assert db_query('qa',"SELECT count(*) FROM ir_cron WHERE active;") == '0'
