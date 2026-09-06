@@ -145,7 +145,13 @@ http {
   location = /web/login { limit_req zone=login burst=8 nodelay; proxy_pass http://app; }
   location = /web/session/authenticate { limit_req zone=login burst=8 nodelay; proxy_pass http://app; }
   location /websocket { proxy_pass http://bus; proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection $connection_upgrade; proxy_buffering off; proxy_read_timeout 3600s; }
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Forwarded-Host $http_host;
+    proxy_set_header X-Forwarded-Proto $forwarded_proto;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_buffering off; proxy_read_timeout 3600s; }
   location ^~ /web/assets/debug/ { proxy_pass http://app; add_header Cache-Control no-store always; }
   location ~* ^/[^/]+/static/ { proxy_pass http://app; expires 7d; }
   location / { proxy_pass http://app; }
@@ -181,12 +187,15 @@ http {
       'nginx':dict(common,image=IMAGES['nginx'],container_name='bioteczac-'+environment+'-nginx',
         user='101:101',entrypoint=['nginx','-g','daemon off;'],read_only=True,cap_drop=['ALL'],
         mem_limit='256m',pids_limit=64,tmpfs=['/tmp:rw,nosuid,nodev,size=384m,mode=1777'],
-        networks=['edge'],ports=[f'127.0.0.1:{port}:8080'],depends_on=['odoo'],
+        networks=['edge','frontend'] if qa else ['edge'],ports=[f'127.0.0.1:{port}:8080'],depends_on=['odoo'],
         volumes=[str(target/'config'/'nginx.conf')+':/etc/nginx/nginx.conf:ro']),
     }
     spec={'services':services,'networks':{'backend':{'internal':True},'edge':{'internal':qa}},
           'secrets':{key:{'file':str(target/'secrets'/key)} for key in
                      ('postgres_password','app_password','manager_password','login_password')}}
+    # Only the QA reverse proxy joins the published bridge. Odoo and PostgreSQL
+    # remain on internal networks with no Internet or production route.
+    if qa: spec['networks']['frontend'] = {}
     write_private(target/'compose.json',json.dumps(spec,indent=2)+'\n')
 
 
@@ -245,8 +254,10 @@ def health(environment):
     browser=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     for attempt in range(45):
         try:
-            response=browser.open('http://127.0.0.1:%s/web/login' % port,timeout=5)
-            if response.status == 200 and b'name="login"' in response.read(): return
+            response=browser.open('http://127.0.0.1:%s/web/health' % port,timeout=5)
+            if response.status == 200:
+                login=browser.open('http://127.0.0.1:%s/web/login' % port,timeout=5)
+                if login.status == 200 and b'name="login"' in login.read(): return
         except Exception: pass
         time.sleep(1)
     raise RuntimeError('Odoo login health check failed for ' + environment)
@@ -260,15 +271,12 @@ def setup():
         raise RuntimeError('Production is already initialized. setup never resets it.')
     copy_code('production')
     database_ready('production'); create_database('production')
-    # Odoo checks the maintenance database at every startup. CONNECT is harmless
-    # there; creation privileges are bounded to this offline initialization.
-    sql('production','ALTER ROLE bioteczac_app CREATEDB; GRANT CONNECT ON DATABASE postgres TO bioteczac_app;')
-    try:
-        with (path('production')/'logs'/'initialize.log').open('w') as stream:
-            compose('production','run','-T','--rm','--no-deps','odoo','-i',MODULES,'--without-demo=True',
-                    '--stop-after-init','--no-http','--workers=0','--max-cron-threads=0','--load-language=es_MX',output=stream)
-    finally:
-        sql('production','ALTER ROLE bioteczac_app NOCREATEDB;')
+    # PostgreSQL creates the single database through its local administrative
+    # socket. The application role never needs database-creation privileges.
+    sql('production','ALTER ROLE bioteczac_app NOCREATEDB NOSUPERUSER NOCREATEROLE NOREPLICATION;')
+    with (path('production')/'logs'/'initialize.log').open('w') as stream:
+        compose('production','run','-T','--rm','--no-deps','odoo','-i',MODULES,'--without-demo=True',
+                '--stop-after-init','--no-http','--workers=0','--max-cron-threads=0','--load-language=es_MX',output=stream)
     shell('production',(ROOT/'runtime'/'bootstrap_odoo.py').read_text(),path('production')/'logs'/'bootstrap.log')
     compose('production','up','-d','odoo','nginx'); health('production')
     verify('production')
@@ -318,6 +326,8 @@ def snapshot():
         if store.exists(): shutil.copytree(store,directory/'filestore')
         else: (directory/'filestore').mkdir()
         shutil.copy(path('production')/'release.json',directory/'release.json')
+        shutil.copy(path('production')/'compose.json',directory/'compose.json')
+        shutil.copytree(path('production')/'config',directory/'config')
         write_private(directory/'controls.json',json.dumps(controls('production'),sort_keys=True)+'\n')
         write_private(directory/'snapshot.json',json.dumps({'database':DATABASE,'source':'production',
             'cutoff_utc':dt.datetime.now(dt.timezone.utc).isoformat(),
