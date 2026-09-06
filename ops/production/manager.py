@@ -116,6 +116,9 @@ http {
  keepalive_timeout 65;
  client_body_temp_path /tmp/client_body;
  proxy_temp_path /tmp/proxy;
+ fastcgi_temp_path /tmp/fastcgi;
+ uwsgi_temp_path /tmp/uwsgi;
+ scgi_temp_path /tmp/scgi;
  proxy_cache_path /tmp/cache levels=1:2 keys_zone=assets:16m max_size=256m inactive=7d;
  map $http_upgrade $connection_upgrade { default upgrade; '' close; }
  map $http_x_forwarded_proto $forwarded_proto { default $scheme; https https; }
@@ -164,7 +167,7 @@ http {
                  '-c','shared_buffers='+('128MB' if qa else '512MB'),'-c','log_min_duration_statement=1000'],
         healthcheck={'test':['CMD-SHELL','pg_isready -U postgres -d postgres'],'interval':'5s','timeout':'3s','retries':30}),
       'odoo': dict(common,image=IMAGES['odoo'],container_name='bioteczac-'+environment+'-odoo',
-        entrypoint=['python3','/runtime/start_odoo.py'], user='100:101',read_only=True,cap_drop=['ALL'],
+        entrypoint=['python3','/runtime/start_odoo.py'], command=[], user='100:101',read_only=True,cap_drop=['ALL'],
         tmpfs=['/tmp:rw,nosuid,nodev,size=512m,mode=1777'],
         mem_limit='2g' if qa else '6g',pids_limit=256,
         depends_on={'db':{'condition':'service_healthy'}},networks=['backend','edge'],

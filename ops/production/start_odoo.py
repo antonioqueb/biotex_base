@@ -14,6 +14,8 @@ fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
 with os.fdopen(fd, 'w') as stream:
     config.write(stream)
 args = sys.argv[1:]
+if args and args[0] == 'odoo':
+    args.pop(0)
 command = args.pop(0) if args and args[0] in ('shell', 'neutralize') else None
 argv = ['odoo'] + ([command] if command else []) + ['-c', str(path)] + args
 os.execvp('odoo', argv)
