@@ -21,7 +21,7 @@ import http.cookiejar
 
 ROOT = Path('/opt/bioteczac')
 SOURCE = Path(__file__).resolve().parent
-ENTERPRISE = Path('/opt/biotex/src/odoo-19.0+e.20260620/odoo/addons')
+ENTERPRISE = ROOT / 'enterprise' / 'addons'
 DATABASE = 'bioteczac'
 APP_ROLE = 'bioteczac_app'
 IMAGES = {
