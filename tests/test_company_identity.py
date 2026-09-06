@@ -8,6 +8,17 @@ from ..company_identity import COMPANY_IDENTITIES, apply_company_identities, ide
 class TestCompanyIdentity(TransactionCase):
     """Migration tests on the restored customer database; all fixtures roll back."""
 
+    def test_upgrade_persists_complete_fiscal_identity(self):
+        # Do not call the helper: verify what the actual module upgrade committed.
+        for _, company, values in identity_plan(self.env):
+            for key, expected in values.items():
+                actual = company[key]
+                if company._fields[key].type == 'many2one':
+                    actual = actual.id
+                self.assertEqual(actual, expected, '%s: %s' % (company.id, key))
+            if 'l10n_mx_edi_fiscal_regime' in company.partner_id._fields:
+                self.assertEqual(company.partner_id.l10n_mx_edi_fiscal_regime, '601')
+
     def test_identity_and_native_partner_are_updated_in_place(self):
         plan = identity_plan(self.env)
         identifiers = [(company.id, company.partner_id.id) for _, company, _ in plan]
