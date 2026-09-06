@@ -38,7 +38,7 @@ MODULES = ','.join(ADDONS + ['web_enterprise','account_accountant','l10n_mx_edi'
 def run(args, *, input=None, output=None, capture=False, check=True):
     return subprocess.run([str(x) for x in args], input=input, text=True, check=check,
                           stdout=output if output else (subprocess.PIPE if capture else None),
-                          stderr=subprocess.PIPE if capture else None)
+                          stderr=subprocess.STDOUT if output else (subprocess.PIPE if capture else None))
 
 
 def path(environment):
@@ -96,8 +96,8 @@ def render(environment):
       'max_cron_threads':'0' if qa else '1','gevent_port':'8072','db_maxconn':'16',
       'limit_memory_soft':'805306368','limit_memory_hard':'1073741824',
       'limit_time_cpu':'120','limit_time_real':'240','limit_time_real_cron':'3600',
-      'limit_request':'8192','log_level':'info','log_db':'False',
-      'report_url':'http://127.0.0.1:8069','smtp_server':'127.0.0.1','smtp_port':'9',
+      'limit_request':'8192','log_level':'info',
+      'smtp_server':'127.0.0.1','smtp_port':'9',
       'without_demo':'True', 'http_interface':'0.0.0.0',
     }
     with (target/'config'/'odoo.conf').open('w') as stream: config.write(stream)
@@ -257,9 +257,15 @@ def setup():
         raise RuntimeError('Production is already initialized. setup never resets it.')
     copy_code('production')
     database_ready('production'); create_database('production')
-    with (path('production')/'logs'/'initialize.log').open('w') as stream:
-        compose('production','run','-T','--rm','--no-deps','odoo','-i',MODULES,'--without-demo=True',
-                '--stop-after-init','--no-http','--workers=0','--max-cron-threads=0','--load-language=es_MX',output=stream)
+    # Odoo's initialization CLI connects to the maintenance database even when
+    # the target already exists. No HTTP service runs during this bounded grant.
+    sql('production','ALTER ROLE bioteczac_app CREATEDB; GRANT CONNECT ON DATABASE postgres TO bioteczac_app;')
+    try:
+        with (path('production')/'logs'/'initialize.log').open('w') as stream:
+            compose('production','run','-T','--rm','--no-deps','odoo','-i',MODULES,'--without-demo=True',
+                    '--stop-after-init','--no-http','--workers=0','--max-cron-threads=0','--load-language=es_MX',output=stream)
+    finally:
+        sql('production','ALTER ROLE bioteczac_app NOCREATEDB; REVOKE CONNECT ON DATABASE postgres FROM bioteczac_app;')
     shell('production',(ROOT/'runtime'/'bootstrap_odoo.py').read_text(),path('production')/'logs'/'bootstrap.log')
     compose('production','up','-d','odoo','nginx'); health('production')
     verify('production')

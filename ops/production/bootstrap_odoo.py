@@ -46,6 +46,7 @@ params = env['ir.config_parameter'].sudo()
 params.set_param('auth_signup.invitation_scope', 'b2b')
 params.set_param('web.base.url', 'http://localhost:1400')
 params.set_param('web.base.url.freeze', True)
+params.set_param('report.url', 'http://127.0.0.1:8069')
 params.set_param('database.is_neutralized', False)
 params.set_param('bioteczac.environment', 'production')
 # No external services have been authorized/configured at production cutover.
