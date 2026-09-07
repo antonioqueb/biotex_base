@@ -1,9 +1,6 @@
 """Apply after Odoo's native neutralization, before exposing QA to any HTTP request."""
 import uuid
-import secrets
 import os
-from pathlib import Path
-from odoo import Command
 
 assert env.cr.dbname == 'bioteczac'
 params = env['ir.config_parameter'].sudo()
@@ -34,12 +31,9 @@ if 'l10n_mx_edi.certificate' in env:
         values = {key: False for key in ('key', 'password', 'active') if key in certificate._fields}
         if values: certificate.write(values)
 if 'res.users.apikeys' in env: env['res.users.apikeys'].search([]).unlink()
-admin = env.ref('base.user_admin').with_context(no_reset_password=True, tracking_disable=True)
-admin.write({'login': 'soporte@alphacap.com', 'password': Path('/run/secrets/login_password').read_text().strip(),
-             'active': True, 'company_ids': [Command.set(env['res.company'].search([]).ids)]})
-if 'totp_secret' in admin._fields: admin.totp_secret = False
-if 'auth.passkey.key' in env: env['auth.passkey.key'].search([]).unlink()
-for user in env['res.users'].with_context(active_test=False).search([('id', 'not in', [1, admin.id])]):
-    user.with_context(tracking_disable=True).write({'active': False, 'password': secrets.token_urlsafe(48)})
+# Human accounts belong to the production snapshot: preserve login, password
+# hashes, active state, company/group permissions, TOTP and passkeys. The
+# lifecycle verifies these against the snapshot before exposing QA. Integration
+# API keys remain disabled above; browser sessions are cleared during restore.
 env.cr.commit()
 print('QA_NEUTRALIZED')

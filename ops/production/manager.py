@@ -345,6 +345,34 @@ def controls(environment):
     return result
 
 
+def authentication_controls(environment):
+    """Compare human access without logging or saving password hashes/secrets."""
+    tables = {
+        'res_users': ('id', 'login', 'password', 'active', 'company_id', 'share'),
+        'res_groups_users_rel': None,
+        'res_company_users_rel': None,
+        'auth_passkey_key': None,
+        'auth_totp_device': None,
+    }
+    result = {}
+    for table, columns in tables.items():
+        if not db_query(environment, "SELECT to_regclass('public.%s');" % table):
+            if table.startswith('res_'):
+                raise RuntimeError('Missing authentication table: ' + table)
+            continue
+        if columns:
+            available = db_query(environment, "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema='public' AND table_name='res_users';").splitlines()
+            if not set(columns).issubset(available):
+                raise RuntimeError('Missing required user authentication columns')
+            columns = columns + (('totp_secret',) if 'totp_secret' in available else ())
+        projection = ','.join(columns) if columns else '*'
+        payload = db_query(environment, "SELECT coalesce(json_agg(row_to_json(t) "
+            "ORDER BY row_to_json(t)::text),'[]') FROM (SELECT %s FROM %s) t;" % (projection, table))
+        result[table] = hashlib.sha256(payload.encode()).hexdigest()
+    return result
+
+
 def snapshot():
     encryption_setup()
     directory=Path(tempfile.mkdtemp(prefix='snapshot-',dir=ROOT/'work'))
@@ -361,6 +389,8 @@ def snapshot():
         if (path('production')/'public-access.json').exists():
             shutil.copy(path('production')/'public-access.json',directory/'public-access.json')
         write_private(directory/'controls.json',json.dumps(controls('production'),sort_keys=True)+'\n')
+        write_private(directory/'authentication-controls.json',
+                      json.dumps(authentication_controls('production'),sort_keys=True)+'\n')
         write_private(directory/'snapshot.json',json.dumps({'database':DATABASE,'source':'production',
             'cutoff_utc':dt.datetime.now(dt.timezone.utc).isoformat(),
             'database_uuid':db_query('production',"SELECT value FROM ir_config_parameter WHERE key='database.uuid';")},indent=2)+'\n')
@@ -428,15 +458,20 @@ def qa_refresh():
         sessions=path('qa')/'data'/'sessions'
         if sessions.exists(): shutil.rmtree(sessions)
         copy_code('qa','production')
+        authentication = json.loads((restored/'authentication-controls.json').read_text())
+        assert authentication_controls('qa') == authentication, 'Restored QA access differs from its production snapshot'
         with (path('qa')/'logs'/'neutralize.log').open('w') as stream:
             compose('qa','run','-T','--rm','--no-deps','odoo','neutralize','-d',DATABASE,output=stream)
-        shell('qa',(ROOT/'runtime'/'neutralize_qa.py').read_text(),path('qa')/'logs'/'neutralize-extra.log',login_secret=True)
+        shell('qa',(ROOT/'runtime'/'neutralize_qa.py').read_text(),path('qa')/'logs'/'neutralize-extra.log')
+        assert authentication_controls('qa') == authentication, 'QA neutralization changed human access'
         assert controls('qa') == json.loads((restored/'controls.json').read_text()), 'QA business data differs from its production snapshot'
         source_uuid=json.loads((restored/'snapshot.json').read_text())['database_uuid']
         assert source_uuid != db_query('qa',"SELECT value FROM ir_config_parameter WHERE key='database.uuid';")
         assert db_query('qa',"SELECT count(*) FROM ir_cron WHERE active;") == '0'
         compose('qa','up','-d','odoo','nginx'); health('qa'); verify('qa')
-        shutil.copy(restored/'snapshot.json',path('qa')/'last-refresh.json')
+        refresh = json.loads((restored/'snapshot.json').read_text())
+        refresh.update(authentication_preserved=True, authentication_tables_verified=len(authentication))
+        write_private(path('qa')/'last-refresh.json', json.dumps(refresh,indent=2)+'\n')
         print('QA_REFRESH_OK')
     finally:
         shutil.rmtree(directory)
@@ -451,7 +486,9 @@ def verify(environment):
     assert int(db_query(environment,"SELECT count(*) FROM res_company;"))==3
     # Only the bootstrap starts with a single administrator. Subsequent real
     # users created through Odoo are valid and must not be disabled by checks.
-    assert db_query(environment,"SELECT count(*) FROM res_users WHERE active AND login='soporte@alphacap.com';")=='1'
+    assert db_query(environment,"SELECT count(*) FROM res_users u JOIN ir_model_data d "
+        "ON d.model='res.users' AND d.res_id=u.id WHERE d.module='base' AND d.name='user_admin' "
+        "AND u.active AND nullif(trim(u.login),'') IS NOT NULL;")=='1'
     assert db_query(environment,"SELECT count(*) FROM ir_module_module WHERE name='biotex_demo' AND state='installed';")=='0'
     files=db_query(environment,"SELECT store_fname,checksum FROM ir_attachment WHERE store_fname IS NOT NULL;").splitlines()
     root=path(environment)/'data'/'filestore'/DATABASE
