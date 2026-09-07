@@ -449,7 +449,9 @@ def verify(environment):
     assert sql(environment,"SELECT rolcreatedb OR rolsuper OR rolcreaterole OR rolreplication FROM pg_roles WHERE rolname='bioteczac_app';")=='f'
     data=json.loads(db_query(environment,"SELECT value FROM ir_config_parameter WHERE key='bioteczac.catalog_import_report';"))
     assert int(db_query(environment,"SELECT count(*) FROM res_company;"))==3
-    assert db_query(environment,"SELECT count(*) FROM res_users WHERE active AND id<>1 AND login<>'soporte@alphacap.com';")=='0'
+    # Only the bootstrap starts with a single administrator. Subsequent real
+    # users created through Odoo are valid and must not be disabled by checks.
+    assert db_query(environment,"SELECT count(*) FROM res_users WHERE active AND login='soporte@alphacap.com';")=='1'
     assert db_query(environment,"SELECT count(*) FROM ir_module_module WHERE name='biotex_demo' AND state='installed';")=='0'
     files=db_query(environment,"SELECT store_fname,checksum FROM ir_attachment WHERE store_fname IS NOT NULL;").splitlines()
     root=path(environment)/'data'/'filestore'/DATABASE
