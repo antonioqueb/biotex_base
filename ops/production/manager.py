@@ -177,7 +177,7 @@ http {
         tmpfs=['/tmp:rw,nosuid,nodev,size=512m,mode=1777'],
         mem_limit='2g' if qa else '6g',pids_limit=256,
         depends_on={'db':{'condition':'service_healthy'}},networks=['backend','edge'],
-        secrets=['app_password','manager_password','login_password'],
+        secrets=['app_password','manager_password'],
         volumes=[str(target/'config'/'odoo.conf')+':/etc/odoo/base.conf:ro',
                  str(target/'data')+':/var/lib/odoo',str(target/'addons')+':/mnt/extra-addons:ro',
                  str(ENTERPRISE)+':/mnt/enterprise:ro',str(ROOT/'runtime')+':/runtime:ro',
@@ -243,9 +243,10 @@ def create_database(environment):
     db_query(environment,'SET ROLE bioteczac_app; CREATE EXTENSION IF NOT EXISTS unaccent; CREATE EXTENSION IF NOT EXISTS pg_trgm; RESET ROLE;')
 
 
-def shell(environment, script, logfile):
+def shell(environment, script, logfile, *, login_secret=False):
+    options = ['-v', str(path(environment)/'secrets'/'login_password') + ':/run/secrets/login_password:ro'] if login_secret else []
     with logfile.open('w') as stream:
-        compose(environment,'run','-T','--rm','--no-deps','odoo','shell','--no-http','--workers=0','--max-cron-threads=0',
+        compose(environment,'run','-T','--rm','--no-deps',*options,'odoo','shell','--no-http','--workers=0','--max-cron-threads=0',
                 input=script,output=stream)
 
 
@@ -277,7 +278,7 @@ def setup():
     with (path('production')/'logs'/'initialize.log').open('w') as stream:
         compose('production','run','-T','--rm','--no-deps','odoo','-i',MODULES,'--without-demo=True',
                 '--stop-after-init','--no-http','--workers=0','--max-cron-threads=0','--load-language=es_MX',output=stream)
-    shell('production',(ROOT/'runtime'/'bootstrap_odoo.py').read_text(),path('production')/'logs'/'bootstrap.log')
+    shell('production',(ROOT/'runtime'/'bootstrap_odoo.py').read_text(),path('production')/'logs'/'bootstrap.log',login_secret=True)
     compose('production','up','-d','odoo','nginx'); health('production')
     verify('production')
     print('PRODUCTION_INITIALIZED')
@@ -398,7 +399,7 @@ def qa_refresh():
         copy_code('qa','production')
         with (path('qa')/'logs'/'neutralize.log').open('w') as stream:
             compose('qa','run','-T','--rm','--no-deps','odoo','neutralize','-d',DATABASE,output=stream)
-        shell('qa',(ROOT/'runtime'/'neutralize_qa.py').read_text(),path('qa')/'logs'/'neutralize-extra.log')
+        shell('qa',(ROOT/'runtime'/'neutralize_qa.py').read_text(),path('qa')/'logs'/'neutralize-extra.log',login_secret=True)
         assert controls('qa') == json.loads((restored/'controls.json').read_text()), 'QA business data differs from its production snapshot'
         source_uuid=json.loads((restored/'snapshot.json').read_text())['database_uuid']
         assert source_uuid != db_query('qa',"SELECT value FROM ir_config_parameter WHERE key='database.uuid';")
