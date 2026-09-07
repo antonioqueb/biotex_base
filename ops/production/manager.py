@@ -91,7 +91,7 @@ def render(environment):
     target = path(environment); qa = environment == 'qa'; port = 1401 if qa else 1400
     public_file = target/'public-access.json'
     public_ip = None
-    if not qa and public_file.exists():
+    if public_file.exists():
         public_ip = str(ipaddress.IPv4Address(json.loads(public_file.read_text())['ip']))
         if not ipaddress.ip_address(public_ip).is_global:
             raise ValueError('The public TLS listener requires a global IPv4 address')
@@ -178,7 +178,7 @@ http {
   ssl_session_cache shared:TLS:10m;
   ssl_session_tickets off;
   proxy_cookie_flags session_id secure httponly samesite=lax;
-  error_page 497 =308 https://PUBLIC_IP:1400$request_uri;'''.replace('PUBLIC_IP',public_ip)
+  error_page 497 =308 https://PUBLIC_IP:PUBLIC_PORT$request_uri;'''.replace('PUBLIC_IP',public_ip).replace('PUBLIC_PORT',str(port))
         public_server = public_server.replace('  listen 8080;',tls_settings,1)
         public_server = public_server.replace('server_name _;', 'server_name '+public_ip+';',1)
         public_server = public_server.replace('X-Forwarded-Proto $forwarded_proto;', 'X-Forwarded-Proto https;')
@@ -222,8 +222,9 @@ http {
     # remain on internal networks with no Internet or production route.
     if qa: spec['networks']['frontend'] = {}
     if public_ip:
-        services['nginx']['ports'].append(public_ip+':1400:8443')
+        services['nginx']['ports'].append(f'{public_ip}:{port}:8443')
         services['nginx']['volumes'].append(str(target/'tls')+':/run/tls:ro')
+        services['odoo']['environment'] = {'BIOTECZAC_PUBLIC_BASE_URL':f'https://{public_ip}:{port}'}
     write_private(target/'compose.json',json.dumps(spec,indent=2)+'\n')
 
 

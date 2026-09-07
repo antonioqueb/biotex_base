@@ -1,6 +1,7 @@
 """Apply after Odoo's native neutralization, before exposing QA to any HTTP request."""
 import uuid
 import secrets
+import os
 from pathlib import Path
 from odoo import Command
 
@@ -9,7 +10,7 @@ params = env['ir.config_parameter'].sudo()
 params.set_param('database.uuid', str(uuid.uuid4()))
 params.set_param('database.is_neutralized', True)
 params.set_param('bioteczac.environment', 'qa')
-params.set_param('web.base.url', 'http://localhost:1401')
+params.set_param('web.base.url', os.environ.get('BIOTECZAC_PUBLIC_BASE_URL', 'http://localhost:1401'))
 params.set_param('web.base.url.freeze', True)
 params.set_param('auth_signup.invitation_scope', 'b2b')
 env['ir.cron'].search([]).write({'active': False})

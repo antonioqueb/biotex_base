@@ -32,12 +32,26 @@ class PublicAccessTests(unittest.TestCase):
         self.assertIn('https://2.24.78.58:1400$request_uri',nginx)
         self.assertEqual(nginx.count('xmlrpc/2/db'),2)
 
-    def test_qa_never_publishes_production_endpoint_or_certificate(self):
-        (self.root/'qa/public-access.json').write_text(json.dumps({'ip':'2.24.78.58'}))
+    def test_qa_does_not_inherit_public_access_from_production(self):
+        (self.root/'production/public-access.json').write_text(json.dumps({'ip':'2.24.78.58'}))
         manager.render('qa')
         nginx = json.loads((self.root/'qa/compose.json').read_text())['services']['nginx']
         self.assertEqual(nginx['ports'],['127.0.0.1:1401:8080'])
         self.assertFalse(any('/run/tls' in volume for volume in nginx['volumes']))
+
+    def test_explicit_qa_access_uses_its_own_port_files_and_base_url(self):
+        (self.root/'qa/public-access.json').write_text(json.dumps({'ip':'2.24.78.58'}))
+        manager.render('qa')
+        spec = json.loads((self.root/'qa/compose.json').read_text())
+        self.assertIn('2.24.78.58:1401:8443',spec['services']['nginx']['ports'])
+        self.assertIn(str(self.root/'qa/tls')+':/run/tls:ro',spec['services']['nginx']['volumes'])
+        self.assertFalse(any('/production/' in v for v in spec['services']['nginx']['volumes']))
+        self.assertEqual(spec['services']['odoo']['environment']['BIOTECZAC_PUBLIC_BASE_URL'],'https://2.24.78.58:1401')
+        self.assertTrue(spec['networks']['backend']['internal'])
+        self.assertTrue(spec['networks']['edge']['internal'])
+        nginx = (self.root/'qa/config/nginx.conf').read_text()
+        self.assertIn('https://2.24.78.58:1401$request_uri',nginx)
+        self.assertNotIn(':1400',nginx)
 
     def test_nonpublic_address_is_rejected(self):
         (self.root/'production/public-access.json').write_text(json.dumps({'ip':'127.0.0.1'}))
