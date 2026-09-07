@@ -38,6 +38,16 @@ ssh -N -L 1400:127.0.0.1:1400 -L 1401:127.0.0.1:1401 root@2.24.78.58
 
 Abrir `http://localhost:1400` o `http://localhost:1401`. El transporte remoto queda cifrado por SSH. El host admite autenticación SSH por llave y tiene firewall y Fail2ban para SSH. Los secretos están bajo `secrets/` de cada entorno; no se incluyen en Git, argumentos del proceso ni imágenes.
 
+### Acceso directo de producción por IP
+
+El acceso público autorizado adicional es `https://2.24.78.58:1400/odoo`. Conserva el mismo usuario y contraseña de producción. El puerto público 1400 termina TLS en Nginx (8443 dentro del contenedor); el origen privado HTTP en loopback sigue disponible para SSH o un futuro Cloudflare Tunnel. Una petición HTTP al puerto público redirige a HTTPS antes del inicio de sesión. QA continúa exclusivamente en loopback.
+
+`production/public-access.json` activa este listener al renderizar Compose/Nginx. El certificado se emite con Certbot 5.8 (snap oficial), perfil `shortlived`, validación HTTP-01 y nombre de certificado `bioteczac-ip`. El puerto 80 se reserva para el servidor temporal de validación de Certbot y no sirve Odoo. La renovación automática del snap llama al hook `/opt/bioteczac/runtime/publish_tls.py`, instalado en `/etc/letsencrypt/renewal-hooks/deploy/bioteczac-ip`. El hook verifica IP, cadena, vigencia y correspondencia de la llave, publica los archivos de forma atómica y recarga Nginx. La llave TLS se monta solo en el proxy de producción.
+
+Comprobar con `systemctl list-timers snap.certbot.renew.timer`, `certbot certificates` y `certbot renew --cert-name bioteczac-ip --dry-run --run-deploy-hooks`. Si se restaura en otro servidor, reemitir el certificado de la IP que corresponda antes de habilitar el listener. Al conectar Cloudflare se puede retirar el acceso público por IP eliminando expresamente `public-access.json`, renderizando de nuevo y recreando únicamente el proxy. No se debe abrir el origen HTTP de Odoo a Internet.
+
+Referencias: [certificados de IP de Let's Encrypt](https://letsencrypt.org/2026/03/11/shorter-certs-certbot) y [renovación de Certbot](https://eff-certbot.readthedocs.io/en/stable/using.html#renewing-certificates).
+
 ## Respaldo y recuperación
 
 El timer `bioteczac-backup.timer` genera un respaldo diario aproximadamente a las 03:00 de Monterrey (09:00 UTC). El comando `bioteczac backup` permite uno adicional. Consultar el resultado con `journalctl -u bioteczac-backup.service` y `systemctl list-timers bioteczac-backup.timer`.

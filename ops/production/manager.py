@@ -18,6 +18,7 @@ import time
 import urllib.request
 import urllib.error
 import http.cookiejar
+import ipaddress
 
 ROOT = Path('/opt/bioteczac')
 SOURCE = Path(__file__).resolve().parent
@@ -88,6 +89,12 @@ def prepare(environment):
 
 def render(environment):
     target = path(environment); qa = environment == 'qa'; port = 1401 if qa else 1400
+    public_file = target/'public-access.json'
+    public_ip = None
+    if not qa and public_file.exists():
+        public_ip = str(ipaddress.IPv4Address(json.loads(public_file.read_text())['ip']))
+        if not ipaddress.ip_address(public_ip).is_global:
+            raise ValueError('The public TLS listener requires a global IPv4 address')
     config = configparser.ConfigParser(interpolation=None)
     config['options'] = {
       'addons_path':'/mnt/enterprise,/mnt/extra-addons', 'data_dir':'/var/lib/odoo',
@@ -158,6 +165,24 @@ http {
  }
 }
 '''
+    if public_ip:
+        # Reuse the same application routes and manager restrictions on both listeners.
+        # The original HTTP listener remains reachable only through host loopback.
+        marker = ' server {\n  listen 8080;'
+        start = nginx.index(marker)
+        public_server = nginx[start:nginx.rfind('\n}')]
+        tls_settings = '''  listen 8443 ssl;
+  ssl_certificate /run/tls/current/fullchain.pem;
+  ssl_certificate_key /run/tls/current/privkey.pem;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_session_cache shared:TLS:10m;
+  ssl_session_tickets off;
+  proxy_cookie_flags session_id secure httponly samesite=lax;
+  error_page 497 =308 https://PUBLIC_IP:1400$request_uri;'''.replace('PUBLIC_IP',public_ip)
+        public_server = public_server.replace('  listen 8080;',tls_settings,1)
+        public_server = public_server.replace('server_name _;', 'server_name '+public_ip+';',1)
+        public_server = public_server.replace('X-Forwarded-Proto $forwarded_proto;', 'X-Forwarded-Proto https;')
+        nginx = nginx[:nginx.rfind('\n}')] + '\n' + public_server + '\n}\n'
     # Only immutable module static files are cached; authenticated attachments are not cached.
     write_private(target/'config'/'nginx.conf',nginx,0o444)
     common = {'restart':'unless-stopped','security_opt':['no-new-privileges:true'],
@@ -196,6 +221,9 @@ http {
     # Only the QA reverse proxy joins the published bridge. Odoo and PostgreSQL
     # remain on internal networks with no Internet or production route.
     if qa: spec['networks']['frontend'] = {}
+    if public_ip:
+        services['nginx']['ports'].append(public_ip+':1400:8443')
+        services['nginx']['volumes'].append(str(target/'tls')+':/run/tls:ro')
     write_private(target/'compose.json',json.dumps(spec,indent=2)+'\n')
 
 
@@ -329,6 +357,8 @@ def snapshot():
         shutil.copy(path('production')/'release.json',directory/'release.json')
         shutil.copy(path('production')/'compose.json',directory/'compose.json')
         shutil.copytree(path('production')/'config',directory/'config')
+        if (path('production')/'public-access.json').exists():
+            shutil.copy(path('production')/'public-access.json',directory/'public-access.json')
         write_private(directory/'controls.json',json.dumps(controls('production'),sort_keys=True)+'\n')
         write_private(directory/'snapshot.json',json.dumps({'database':DATABASE,'source':'production',
             'cutoff_utc':dt.datetime.now(dt.timezone.utc).isoformat(),
